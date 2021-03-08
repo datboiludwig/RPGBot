@@ -39,6 +39,12 @@ client.on('ready', () => {
 		}
 
 		let guildMembers = message.content.split(" ").slice(1);
+		let guildMemberTagsHashed = [];
+
+		for(let i = 0; i < guildMembers.length; i++) {
+			guildMemberTagsHashed.push(createHash(client.users.cache.find(user => user.id == guildMembers[i].slice(3, -1)).tag));
+		}
+
 		if(guildMembers.length < 2) {
 			message.channel.send("You need to have a minimum of 2 starting guild members to create a guild.");
 		}
@@ -62,8 +68,16 @@ client.on('ready', () => {
 			if(guildInvites[createHash(guildMember.tag)] != undefined) {
 				guildInvites[createHash(guildMember.tag)].push({
 					"owner": createHash(message.author.tag), 
-					"hash": createHash(message.author.tag + guildMembers.toString())
-			});
+					"hash": createHash(message.author.tag)
+				});
+
+				guilds[createHash(message.author.tag)] = {
+					"name": "PLACEHOLDER",
+					"owner": message.author.tag,
+					"members": guildMemberTagsHashed,
+					"created": false,
+					"acceptedInvitations": []
+				};
 
 				fs.writeFile('guild-invites.json', JSON.stringify(guildInvites), (err) => {
 				if(err) {
@@ -72,12 +86,28 @@ client.on('ready', () => {
 
 				console.log('Guild invites updated');
 				})
+
+				fs.writeFile('guilds.json', JSON.stringify(guilds), (err) => {
+				if(err) {
+					throw err;
+				}
+
+				console.log('Guilds updated');
+				})
 			} else {
 				guildInvites[createHash(guildMember.tag)] = [];
 				guildInvites[createHash(guildMember.tag)].push({
 					"owner": createHash(message.author.tag), 
-					"hash": createHash(message.author.tag + guildMembers.toString())
-			});
+					"hash": createHash(message.author.tag)
+				});
+
+				guilds[createHash(message.author.tag)] = {
+					"name": "PLACEHOLDER",
+					"owner": message.author.tag,
+					"members": guildMemberTagsHashed,
+					"created": false,
+					"acceptedInvitations": []
+				};
 
 
 				fs.writeFile('guild-invites.json', JSON.stringify(guildInvites), (err) => {
@@ -86,6 +116,14 @@ client.on('ready', () => {
 				}
 
 				console.log('Guild invites updated');
+				})
+
+				fs.writeFile('guilds.json', JSON.stringify(guilds), (err) => {
+				if(err) {
+					throw err;
+				}
+
+				console.log('Guilds updated');
 				})
 			}
 		}
@@ -94,6 +132,10 @@ client.on('ready', () => {
 
 	commands(client, 'accept-invite', (message) => {
 
+		if(message.content.split(" ").length < 1 || message.content.split(" ").length > 1) {
+			message.channel.send("You need to specify whose invite you are accepting by pinging them. (@Username#0000)");
+			return;
+		}
 
 		let inviter = client.users.cache.find(user => user.id == message.content.split(" ")[1].slice(3, -1));
 
@@ -107,6 +149,12 @@ client.on('ready', () => {
 		}
 		console.log(guildInvites[createHash(message.author.tag)]);
 
+		guilds[guildInvites[createHash(message.author.tag)]].acceptedInvitations.push(createHash(message.author.tag));
+
+		if(guilds[guildInvites[createHash(message.author.tag)]].acceptedInvitations == guilds[guildInvites[createHash(message.author.tag)]].members) {
+			guilds[guildInvites[createHash(message.author.tag)]].created = true;
+		}
+
 		fs.writeFile('guild-invites.json', JSON.stringify(guildInvites), (err) => {
 			if(err) {
 				throw err;
@@ -115,7 +163,30 @@ client.on('ready', () => {
 			console.log('Guild invites updated');
 		})
 
-		tryToCreateGuild(getGuildMembersFromGuildHash, message.author.tag);
+	})
+
+	commands(client, 'guild-list', (message) => {
+
+		let guildList = guilds;
+
+
+		const embed = new Discord.MessageEmbed()
+			.setTitle("Listing all current guilds.");
+
+
+		let guildMemberStr;
+		for(let i in guildList) {
+			guildMemberStr = "";
+			for(let j in guildList[i].members) {
+				guildMemberStr = guildMemberStr + players[guildList[i].members[j]].slice(0, -5) + ", ";
+				
+			}
+
+
+			embed.addField(guildList[i].name, "\nOwner:\n" + guildList[i].owner.slice(0, -5) + "\nMembers:\n" + guildMemberStr, false);
+		}
+
+		message.channel.send(embed);
 	})
 
 	commands(client, 'profile', (message) => {
@@ -173,6 +244,7 @@ client.on('ready', () => {
 			"md": 0,
 			"armor": 0,
 			"mr": 0,
+			"ms": 0,
 			"critchance": 0,
 			"critdmg": 100,
 
